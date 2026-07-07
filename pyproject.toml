@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "research-agent"
+version = "1.0.0"
+description = "IBM Granite-powered AI Research Agent"
+requires-python = ">=3.10"
+dependencies = [
+    "ibm-watsonx-ai>=1.5.14",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+    "rich>=13.7.0",
+    "arxiv>=2.1.0",
+    "scholarly>=1.7.11",
+    "bibtexparser>=1.4.0",
+    "fpdf2>=2.7.9",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "sse-starlette>=2.1.0",
+]
+
+[project.scripts]
+research-agent = "main:main"
+
+[tool.setuptools.packages.find]
+include = ["research_agent*"]

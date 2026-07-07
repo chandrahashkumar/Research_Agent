@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Research Agent — IBM Granite</title>
+<style>
+/* ── Reset & Tokens ─────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;
+  --surface:#181c27;
+  --surface2:#1e2336;
+  --surface3:#252b3e;
+  --border:#2d3348;
+  --text:#e8ecf4;
+  --muted:#7b85a0;
+  --accent:#4f8ef7;
+  --accent2:#7c5cd8;
+  --green:#22c55e;
+  --yellow:#f59e0b;
+  --red:#ef4444;
+  --radius:10px;
+  --font:-apple-system,"Segoe UI",system-ui,sans-serif;
+  --mono:"Consolas","Menlo",monospace;
+  --shadow:0 4px 24px rgba(0,0,0,.45);
+}
+[data-theme="light"]{
+  --bg:#f0f2f8;
+  --surface:#ffffff;
+  --surface2:#f7f8fc;
+  --surface3:#edf0f7;
+  --border:#d8dce8;
+  --text:#1a1f2e;
+  --muted:#6b7394;
+  --shadow:0 4px 24px rgba(0,0,0,.10);
+}
+
+/* ── Base ───────────────────────────────────────────────────────── */
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.6}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+button{cursor:pointer;font-family:var(--font)}
+::selection{background:var(--accent);color:#fff}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.shell{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:260px;min-width:260px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:width .25s}
+.sidebar.collapsed{width:64px;min-width:64px}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── Sidebar ────────────────────────────────────────────────────── */
+.sidebar-logo{padding:20px 16px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-icon svg{width:20px;height:20px;fill:#fff}
+.logo-text{overflow:hidden}
+.logo-text h2{font-size:15px;font-weight:700;white-space:nowrap}
+.logo-text p{font-size:11px;color:var(--muted);white-space:nowrap}
+
+.sidebar-nav{flex:1;padding:12px 8px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:8px;cursor:pointer;transition:background .15s;user-select:none;border:none;background:transparent;color:var(--text);width:100%;text-align:left;font-size:13px;font-weight:500}
+.nav-item:hover{background:var(--surface2)}
+.nav-item.active{background:var(--surface3);color:var(--accent)}
+.nav-item svg{width:18px;height:18px;flex-shrink:0;stroke:currentColor;fill:none}
+.nav-label{white-space:nowrap;overflow:hidden}
+.sidebar.collapsed .nav-label,.sidebar.collapsed .logo-text{display:none}
+.sidebar.collapsed .sidebar-logo{justify-content:center;padding:20px 8px 16px}
+
+.sidebar-footer{padding:12px 8px;border-top:1px solid var(--border)}
+.model-badge{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:11px}
+.model-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.sidebar.collapsed .model-badge span{display:none}
+
+/* ── Topbar ─────────────────────────────────────────────────────── */
+.topbar{height:56px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;flex-shrink:0}
+.topbar-title{font-size:16px;font-weight:700;flex:1}
+.topbar-subtitle{font-size:12px;color:var(--muted)}
+.icon-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s;flex-shrink:0}
+.icon-btn:hover{background:var(--surface3)}
+.icon-btn svg{width:16px;height:16px;stroke:var(--text);fill:none}
+
+/* ── Content areas ──────────────────────────────────────────────── */
+.content{flex:1;overflow-y:auto;padding:24px}
+.page{display:none}
+.page.active{display:flex;flex-direction:column;gap:20px}
+
+/* ── Cards ──────────────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.card-title{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+
+/* ── Search bar ─────────────────────────────────────────────────── */
+.search-hero{background:linear-gradient(135deg,rgba(79,142,247,.12),rgba(124,92,216,.12));border:1px solid rgba(79,142,247,.25);border-radius:12px;padding:28px 24px}
+.search-hero h1{font-size:22px;font-weight:800;margin-bottom:6px}
+.search-hero p{color:var(--muted);font-size:13px;margin-bottom:20px}
+.search-row{display:flex;gap:10px}
+.search-input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px;color:var(--text);font-size:14px;font-family:var(--font);outline:none;transition:border-color .2s}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:var(--muted)}
+.btn{padding:10px 20px;border-radius:8px;border:none;font-size:13px;font-weight:600;transition:opacity .15s,transform .1s;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{opacity:.88}
+.btn-secondary{background:var(--surface3);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--surface2)}
+.btn-sm{padding:6px 14px;font-size:12px}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* ── Pipeline steps ─────────────────────────────────────────────── */
+.steps-row{display:flex;gap:10px;flex-wrap:wrap}
+.step-chip{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:24px;background:var(--surface2);border:1px solid var(--border);font-size:12px;font-weight:600;transition:all .3s}
+.step-chip.done{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.35);color:var(--green)}
+.step-chip.active{background:rgba(79,142,247,.12);border-color:rgba(79,142,247,.35);color:var(--accent)}
+.step-chip.error{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:var(--red)}
+.step-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
+.step-chip.active .step-dot{animation:pulse 1s infinite}
+
+/* ── Papers grid ────────────────────────────────────────────────── */
+.papers-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.paper-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;transition:border-color .2s,transform .15s}
+.paper-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.paper-meta{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.source-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase}
+.source-badge.arxiv{background:rgba(239,68,68,.15);color:#f87171}
+.source-badge.semantic_scholar{background:rgba(79,142,247,.15);color:#60a5fa}
+.paper-year{font-size:11px;color:var(--muted);margin-left:auto}
+.paper-title{font-size:13px;font-weight:600;line-height:1.4;margin-bottom:6px}
+.paper-authors{font-size:11px;color:var(--muted);margin-bottom:8px}
+.paper-abstract{font-size:11.5px;color:var(--muted);line-height:1.55;max-height:80px;overflow:hidden;position:relative}
+.paper-abstract::after{content:'';position:absolute;bottom:0;left:0;right:0;height:24px;background:linear-gradient(transparent,var(--surface2))}
+
+/* ── Summaries ──────────────────────────────────────────────────── */
+.summary-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:12px}
+.summary-header{padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:background .15s}
+.summary-header:hover{background:var(--surface3)}
+.summary-num{width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.summary-title-text{flex:1;font-size:13px;font-weight:600}
+.summary-year{font-size:11px;color:var(--muted)}
+.chevron{width:16px;height:16px;stroke:var(--muted);fill:none;transition:transform .2s}
+.summary-body{padding:16px;border-top:1px solid var(--border);display:none;grid-template-columns:1fr 1fr;gap:12px}
+.summary-item.open .summary-body{display:grid}
+.summary-item.open .chevron{transform:rotate(180deg)}
+.field-block{}
+.field-label{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.06em;margin-bottom:4px}
+.field-value{font-size:12.5px;line-height:1.5;color:var(--text)}
+.summary-full{grid-column:1/-1;background:var(--surface3);border-radius:6px;padding:12px;font-size:12.5px;line-height:1.6}
+
+/* ── Report sections ────────────────────────────────────────────── */
+.report-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:4px}
+.rtab{padding:8px 14px;border-radius:6px 6px 0 0;cursor:pointer;font-size:12.5px;font-weight:600;border:none;background:transparent;color:var(--muted);transition:all .15s}
+.rtab:hover{color:var(--text)}
+.rtab.active{color:var(--accent);border-bottom:2px solid var(--accent)}
+.section-content{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;font-size:13.5px;line-height:1.75;white-space:pre-wrap;word-break:break-word;min-height:120px}
+.section-placeholder{color:var(--muted);font-style:italic;font-size:13px;padding:30px;text-align:center}
+
+/* ── Download bar ───────────────────────────────────────────────── */
+.dl-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.dl-label{font-size:12px;font-weight:600;color:var(--muted);flex:1}
+
+/* ── Ask page ───────────────────────────────────────────────────── */
+.ask-box{display:flex;flex-direction:column;gap:10px}
+.ask-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;color:var(--text);font-family:var(--font);font-size:14px;resize:vertical;min-height:80px;outline:none;transition:border-color .2s}
+.ask-input:focus{border-color:var(--accent)}
+.answer-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;font-size:13.5px;line-height:1.8;white-space:pre-wrap;min-height:100px}
+.answer-placeholder{color:var(--muted);font-style:italic;text-align:center;padding:40px}
+
+/* ── Citations page ─────────────────────────────────────────────── */
+.cite-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;gap:14px;align-items:flex-start;margin-bottom:10px}
+.cite-num{width:28px;height:28px;background:var(--surface3);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--accent);flex-shrink:0}
+.cite-body{}
+.cite-title{font-size:13px;font-weight:600;margin-bottom:4px}
+.cite-meta{font-size:11px;color:var(--muted)}
+.cite-link{font-size:11px;color:var(--accent)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:.4}
+.empty-state h3{font-size:15px;font-weight:600;margin-bottom:6px;color:var(--text)}
+.empty-state p{font-size:13px}
+
+/* ── Log stream ─────────────────────────────────────────────────── */
+.log-stream{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;font-family:var(--mono);font-size:12px;line-height:1.6;max-height:160px;overflow-y:auto;color:var(--muted)}
+.log-line{display:flex;gap:8px}
+.log-line .ts{color:var(--muted);flex-shrink:0}
+.log-line .msg{color:var(--text)}
+.log-line.info .msg{color:var(--text)}
+.log-line.ok .msg{color:var(--green)}
+.log-line.warn .msg{color:var(--yellow)}
+.log-line.error .msg{color:var(--red)}
+
+/* ── Stats row ──────────────────────────────────────────────────── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center}
+.stat-val{font-size:28px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-lbl{font-size:11px;color:var(--muted);margin-top:2px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+
+/* ── Modal ──────────────────────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(3px)}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:560px;max-width:94vw;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.modal-header{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+.modal-title{font-size:15px;font-weight:700;flex:1}
+.modal-close{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:var(--muted)}
+.modal-body{padding:20px;overflow-y:auto;font-size:13px;line-height:1.7}
+
+/* ── Progress bar ───────────────────────────────────────────────── */
+.progress-wrap{height:4px;background:var(--surface3);border-radius:2px;overflow:hidden}
+.progress-bar{height:4px;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width .5s;width:0}
+
+/* ── Scrollbar ──────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+@media(max-width:680px){
+  .sidebar{width:0;min-width:0;overflow:hidden}
+  .sidebar.mobile-open{width:240px;min-width:240px;position:absolute;z-index:100;height:100vh}
+  .stats-row{grid-template-columns:1fr 1fr}
+  .papers-grid{grid-template-columns:1fr}
+}
+
+/* ── Highlight.js mini ──────────────────────────────────────────── */
+.hlite{background:rgba(79,142,247,.08);color:var(--accent);padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:12px}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ══ SIDEBAR ══════════════════════════════════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </div>
+      <div class="logo-text">
+        <h2>ResearchAgent</h2>
+        <p>IBM Granite · watsonx.ai</p>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" onclick="showPage('research',this)">
+        <svg viewBox="0 0 24 24" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span class="nav-label">Research</span>
+      </button>
+      <button class="nav-item" onclick="showPage('summaries',this)">
+        <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span class="nav-label">Summaries</span>
+      </button>
+      <button class="nav-item" onclick="showPage('report',this)">
+        <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        <span class="nav-label">Report</span>
+      </button>
+      <button class="nav-item" onclick="showPage('ask',this)">
+        <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="nav-label">Ask Granite</span>
+      </button>
+      <button class="nav-item" onclick="showPage('citations',this)">
+        <svg viewBox="0 0 24 24" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span class="nav-label">Citations</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="model-badge">
+        <div class="dot"></div>
+        <span>granite-8b-code-instruct</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN ═════════════════════════════════════════════════════ -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <button class="icon-btn" onclick="toggleSidebar()" title="Toggle sidebar">
+        <svg viewBox="0 0 24 24" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div>
+        <div class="topbar-title" id="page-title">Research</div>
+        <div class="topbar-subtitle" id="page-sub">Search, summarize, and report</div>
+      </div>
+      <div style="flex:1"></div>
+      <button class="icon-btn" onclick="toggleTheme()" title="Toggle theme" id="theme-btn">
+        <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="progress-wrap"><div class="progress-bar" id="pbar"></div></div>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- ── Research Page ─────────────────────────────────────── -->
+      <section class="page active" id="page-research">
+
+        <div class="search-hero">
+          <h1>AI Research Assistant</h1>
+          <p>Powered by <strong>IBM Granite</strong> on watsonx.ai · Searches arXiv + Semantic Scholar</p>
+          <div class="search-row">
+            <input id="topic-input" class="search-input" type="text"
+              placeholder="e.g. transformer models in drug discovery, deep learning for protein folding..."
+              onkeydown="if(event.key==='Enter')startResearch()"/>
+            <button class="btn btn-primary" id="research-btn" onclick="startResearch()">
+              <svg width="15" height="15" viewBox="0 0 24 24" stroke="white" fill="none" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              Research
+            </button>
+          </div>
+        </div>
+
+        <!-- Pipeline steps -->
+        <div class="steps-row" id="steps-row" style="display:none">
+          <div class="step-chip" id="step1"><div class="step-dot"></div>1. Search Literature</div>
+          <div class="step-chip" id="step2"><div class="step-dot"></div>2. Summarize Papers</div>
+          <div class="step-chip" id="step3"><div class="step-dot"></div>3. Generate Report</div>
+          <div class="step-chip" id="step4"><div class="step-dot"></div>4. Save Outputs</div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-row" id="stats-row" style="display:none">
+          <div class="stat-card"><div class="stat-val" id="stat-papers">0</div><div class="stat-lbl">Papers Found</div></div>
+          <div class="stat-card"><div class="stat-val" id="stat-summ">0</div><div class="stat-lbl">Summarized</div></div>
+          <div class="stat-card"><div class="stat-val" id="stat-secs">0</div><div class="stat-lbl">Report Sections</div></div>
+          <div class="stat-card"><div class="stat-val" id="stat-cites">0</div><div class="stat-lbl">Citations</div></div>
+        </div>
+
+        <!-- Live log -->
+        <div id="log-wrap" style="display:none">
+          <div class="card-title">Live Progress</div>
+          <div class="log-stream" id="log-stream"></div>
+        </div>
+
+        <!-- Papers -->
+        <div id="papers-wrap" style="display:none">
+          <div class="card-title">Papers Found</div>
+          <div class="papers-grid" id="papers-grid"></div>
+        </div>
+
+        <!-- Download bar -->
+        <div class="dl-bar" id="dl-bar" style="display:none">
+          <div class="dl-label">Download Report:</div>
+          <button class="btn btn-secondary btn-sm" onclick="download('md')">
+            <svg width="13" height="13" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Markdown
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="download('pdf')">
+            <svg width="13" height="13" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            PDF
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="download('bib')">
+            <svg width="13" height="13" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            BibTeX
+          </button>
+        </div>
+
+      </section>
+
+      <!-- ── Summaries Page ────────────────────────────────────── -->
+      <section class="page" id="page-summaries">
+        <div class="search-hero" style="padding:20px 24px">
+          <h1 style="font-size:18px">Paper Summaries</h1>
+          <p>Structured summaries generated by IBM Granite</p>
+        </div>
+        <div id="summaries-list">
+          <div class="empty-state">
+            <div class="empty-icon">📄</div>
+            <h3>No summaries yet</h3>
+            <p>Run a research query to generate paper summaries.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Report Page ───────────────────────────────────────── -->
+      <section class="page" id="page-report">
+        <div class="search-hero" style="padding:20px 24px">
+          <h1 style="font-size:18px" id="report-title">Research Report</h1>
+          <p id="report-meta">Run a research query to generate a full report.</p>
+        </div>
+        <div class="report-tabs" id="report-tabs"></div>
+        <div id="report-section-content">
+          <div class="section-placeholder">Report will appear here after research completes.</div>
+        </div>
+        <div class="dl-bar" id="dl-bar-report" style="display:none">
+          <div class="dl-label">Export:</div>
+          <button class="btn btn-secondary btn-sm" onclick="download('md')">Markdown</button>
+          <button class="btn btn-secondary btn-sm" onclick="download('pdf')">PDF</button>
+          <button class="btn btn-secondary btn-sm" onclick="download('txt')">Text</button>
+        </div>
+      </section>
+
+      <!-- ── Ask Page ──────────────────────────────────────────── -->
+      <section class="page" id="page-ask">
+        <div class="search-hero" style="padding:20px 24px">
+          <h1 style="font-size:18px">Ask IBM Granite</h1>
+          <p>Ask any research question — optionally grounded in the current session's papers.</p>
+        </div>
+        <div class="card">
+          <div class="ask-box">
+            <textarea class="ask-input" id="ask-input" placeholder="e.g. What are the main limitations of transformer models in drug discovery?"></textarea>
+            <div style="display:flex;gap:10px;align-items:center">
+              <button class="btn btn-primary" id="ask-btn" onclick="askQuestion()">
+                <svg width="14" height="14" viewBox="0 0 24 24" stroke="white" fill="none" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Ask Granite
+              </button>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer">
+                <input type="checkbox" id="use-session" checked style="accent-color:var(--accent)"/>
+                Use current research context
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="card" id="answer-card" style="display:none">
+          <div class="card-title">Granite's Answer</div>
+          <div class="answer-box" id="answer-box"></div>
+        </div>
+      </section>
+
+      <!-- ── Citations Page ────────────────────────────────────── -->
+      <section class="page" id="page-citations">
+        <div class="search-hero" style="padding:20px 24px">
+          <h1 style="font-size:18px">Citations &amp; References</h1>
+          <p>All references from the current research session.</p>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:6px">
+          <button class="btn btn-secondary btn-sm" onclick="loadCitations()">Refresh</button>
+          <button class="btn btn-secondary btn-sm" onclick="download('bib')">Export BibTeX</button>
+        </div>
+        <div id="citations-list">
+          <div class="empty-state">
+            <div class="empty-icon">📚</div>
+            <h3>No citations yet</h3>
+            <p>Run a research query to collect citations.</p>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- Paper detail modal -->
+<div class="modal-overlay" id="paper-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Paper Details</div>
+      <div class="modal-close" onclick="closeModal()">✕</div>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ── State ───────────────────────────────────────────────────────────────────
+const state = {
+  papers: [],
+  summaries: [],
+  report: null,
+  citations: [],
+  running: false,
+};
+
+// ── Page navigation ─────────────────────────────────────────────────────────
+const pageMeta = {
+  research:  {title:'Research',    sub:'Search, summarize, and report'},
+  summaries: {title:'Summaries',   sub:'Paper summaries by IBM Granite'},
+  report:    {title:'Report',      sub:'Full structured research report'},
+  ask:       {title:'Ask Granite', sub:'Free-form research Q&A'},
+  citations: {title:'Citations',   sub:'References & BibTeX export'},
+};
+
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('page-title').textContent = pageMeta[id].title;
+  document.getElementById('page-sub').textContent   = pageMeta[id].sub;
+  if (id === 'citations') loadCitations();
+}
+
+// ── Sidebar ─────────────────────────────────────────────────────────────────
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+// ── Theme ────────────────────────────────────────────────────────────────────
+let dark = true;
+function toggleTheme() {
+  dark = !dark;
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const btn = document.getElementById('theme-btn');
+  btn.innerHTML = dark
+    ? `<svg viewBox="0 0 24 24" stroke-width="2" stroke="var(--text)" fill="none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
+    : `<svg viewBox="0 0 24 24" stroke-width="2" stroke="var(--text)" fill="none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+}
+
+// ── Progress helpers ─────────────────────────────────────────────────────────
+function setProgress(pct) {
+  document.getElementById('pbar').style.width = pct + '%';
+}
+function setStep(n, status) {
+  const el = document.getElementById('step' + n);
+  if (!el) return;
+  el.className = 'step-chip ' + status;
+}
+
+// ── Log ──────────────────────────────────────────────────────────────────────
+function log(msg, type='info') {
+  const el = document.getElementById('log-stream');
+  const ts = new Date().toLocaleTimeString();
+  const line = document.createElement('div');
+  line.className = 'log-line ' + type;
+  line.innerHTML = `<span class="ts">[${ts}]</span><span class="msg">${escHtml(msg)}</span>`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Research pipeline ────────────────────────────────────────────────────────
+function startResearch() {
+  const topic = document.getElementById('topic-input').value.trim();
+  if (!topic) { document.getElementById('topic-input').focus(); return; }
+  if (state.running) return;
+  state.running = true;
+
+  // Reset UI
+  state.papers = []; state.summaries = []; state.report = null;
+  document.getElementById('papers-grid').innerHTML = '';
+  document.getElementById('summaries-list').innerHTML = '';
+  document.getElementById('log-stream').innerHTML = '';
+  document.getElementById('report-tabs').innerHTML = '';
+  document.getElementById('report-section-content').innerHTML =
+    '<div class="section-placeholder">Generating...</div>';
+
+  // Show UI elements
+  show('steps-row'); show('stats-row'); show('log-wrap'); show('papers-wrap');
+  hide('dl-bar');
+
+  document.getElementById('research-btn').disabled = true;
+  setProgress(5);
+  setStep(1,'active'); setStep(2,''); setStep(3,''); setStep(4,'');
+  updateStats(0,0,0,0);
+
+  log('Starting research: ' + topic);
+
+  const evtSource = new EventSource('/api/research?' + new URLSearchParams({topic, max_results:10}));
+
+  // ── HACK: EventSourceResponse with POST requires a workaround.
+  //    We'll use fetch + ReadableStream for proper POST SSE.
+  evtSource.close();
+  doFetchSSE(topic);
+}
+
+async function doFetchSSE(topic) {
+  try {
+    const resp = await fetch('/api/research', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({topic, max_results:10}),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({detail:'Unknown error'}));
+      log('Error: ' + (err.detail||err), 'error');
+      finishPipeline(false); return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, {stream:true});
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+      for (const chunk of parts) {
+        parseSSEChunk(chunk);
+      }
+    }
+    finishPipeline(true);
+  } catch(e) {
+    log('Connection error: ' + e.message, 'error');
+    finishPipeline(false);
+  }
+}
+
+function parseSSEChunk(chunk) {
+  let eventType = 'message', dataStr = '';
+  for (const line of chunk.split('\n')) {
+    if (line.startsWith('event:')) eventType = line.slice(6).trim();
+    else if (line.startsWith('data:')) dataStr  = line.slice(5).trim();
+  }
+  if (!dataStr) return;
+  let data;
+  try { data = JSON.parse(dataStr); } catch { return; }
+  handleEvent(eventType, data);
+}
+
+function handleEvent(type, data) {
+  switch(type) {
+    case 'status':  onStatus(data);  break;
+    case 'papers':  onPapers(data);  break;
+    case 'summary': onSummary(data); break;
+    case 'report':  onReport(data);  break;
+    case 'done':    onDone(data);    break;
+    case 'error':   onError(data);   break;
+  }
+}
+
+function onStatus(d) {
+  log(d.message);
+  const pcts = {1:15,2:40,3:70,4:90};
+  if (d.step) {
+    setProgress(pcts[d.step]||15);
+    [1,2,3,4].forEach(n => {
+      if (n < d.step) setStep(n,'done');
+      else if (n === d.step) setStep(n,'active');
+    });
+  }
+}
+
+function onPapers(d) {
+  state.papers = d.papers;
+  log('Found ' + d.count + ' papers', 'ok');
+  updateStats(d.count, 0, 0, 0);
+  const grid = document.getElementById('papers-grid');
+  grid.innerHTML = '';
+  d.papers.forEach((p,i) => {
+    const card = document.createElement('div');
+    card.className = 'paper-card';
+    card.onclick = () => openPaperModal(i);
+    const authors = (p.authors||[]).slice(0,2).join(', ') + ((p.authors||[]).length>2?' et al.':'');
+    const badgeCls = p.source==='arxiv'?'arxiv':'semantic_scholar';
+    card.innerHTML = `
+      <div class="paper-meta">
+        <span class="source-badge ${badgeCls}">${p.source==='arxiv'?'arXiv':'S2'}</span>
+        <span class="paper-year">${p.year||''}</span>
+      </div>
+      <div class="paper-title">${escHtml(p.title||'')}</div>
+      <div class="paper-authors">${escHtml(authors)}</div>
+      <div class="paper-abstract">${escHtml((p.abstract||'').slice(0,200))}</div>`;
+    grid.appendChild(card);
+  });
+}
+
+function onSummary(d) {
+  state.summaries.push(d);
+  updateStats(state.papers.length, d.index, 0, 0);
+  const list = document.getElementById('summaries-list');
+  if (d.index === 1) list.innerHTML = '';
+  const item = document.createElement('div');
+  item.className = 'summary-item';
+  item.id = 'sum-' + d.index;
+  item.innerHTML = `
+    <div class="summary-header" onclick="toggleSummary(this)">
+      <div class="summary-num">${d.index}</div>
+      <div class="summary-title-text">${escHtml(d.title||'')}</div>
+      <svg class="chevron" viewBox="0 0 24 24" stroke-width="2"><polyline points="6,9 12,15 18,9"/></svg>
+    </div>
+    <div class="summary-body">
+      <div class="summary-full">${escHtml(d.summary||'')}</div>
+      <div class="field-block"><div class="field-label">Key Findings</div><div class="field-value">${escHtml(d.key_findings||'Not extracted')}</div></div>
+      <div class="field-block"><div class="field-label">Methods</div><div class="field-value">${escHtml(d.methods||'Not extracted')}</div></div>
+    </div>`;
+  list.appendChild(item);
+}
+
+function onReport(d) {
+  state.report = d;
+  log('Report generated', 'ok');
+  updateStats(state.papers.length, state.summaries.length, 6, state.papers.length);
+
+  document.getElementById('report-title').textContent = 'Report: ' + d.topic;
+  document.getElementById('report-meta').textContent  = 'Generated ' + d.generated_at + ' · IBM Granite (watsonx.ai)';
+
+  const tabs   = document.getElementById('report-tabs');
+  const body   = document.getElementById('report-section-content');
+  const secs   = d.sections;
+  const labels = {
+    introduction:'Introduction',
+    literature_review:'Literature Review',
+    methodology_overview:'Methodology',
+    key_findings:'Key Findings',
+    hypotheses:'Hypotheses',
+    conclusion:'Conclusion',
+    references:'References',
+  };
+  tabs.innerHTML = '';
+  let first = true;
+  for (const [key, label] of Object.entries(labels)) {
+    const tab = document.createElement('button');
+    tab.className = 'rtab' + (first?' active':'');
+    tab.textContent = label;
+    tab.onclick = (function(k,t){return function(){
+      document.querySelectorAll('.rtab').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      body.innerHTML = `<div class="section-content">${escHtml(secs[k]||'No content generated.')}</div>`;
+    }})(key,tab);
+    tabs.appendChild(tab);
+    first = false;
+  }
+  body.innerHTML = `<div class="section-content">${escHtml(secs.introduction||'')}</div>`;
+  show('dl-bar-report');
+}
+
+function onDone(d) {
+  log('All outputs saved', 'ok');
+  setProgress(100);
+  setStep(4,'done');
+  show('dl-bar');
+}
+
+function onError(d) {
+  log('Error: ' + d.message, 'error');
+  setStep(1,'error'); setStep(2,'error'); setStep(3,'error'); setStep(4,'error');
+  setProgress(0);
+  finishPipeline(false);
+}
+
+function finishPipeline(ok) {
+  state.running = false;
+  document.getElementById('research-btn').disabled = false;
+  if (ok) setProgress(100);
+}
+
+// ── Ask ──────────────────────────────────────────────────────────────────────
+async function askQuestion() {
+  const q = document.getElementById('ask-input').value.trim();
+  if (!q) return;
+  const btn = document.getElementById('ask-btn');
+  btn.disabled = true;
+  btn.textContent = 'Thinking...';
+
+  const useSession = document.getElementById('use-session').checked;
+  try {
+    const resp = await fetch('/api/ask', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({question:q, use_session:useSession}),
+    });
+    const data = await resp.json();
+    show('answer-card');
+    document.getElementById('answer-box').textContent = data.answer || '(No answer)';
+  } catch(e) {
+    document.getElementById('answer-box').textContent = 'Error: ' + e.message;
+    show('answer-card');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" stroke="white" fill="none" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Ask Granite';
+  }
+}
+
+// ── Citations ────────────────────────────────────────────────────────────────
+async function loadCitations() {
+  const resp = await fetch('/api/citations').catch(()=>null);
+  if (!resp) return;
+  const data = await resp.json();
+  state.citations = data.citations || [];
+  const list = document.getElementById('citations-list');
+  if (!state.citations.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📚</div><h3>No citations yet</h3><p>Run a research query to collect citations.</p></div>';
+    return;
+  }
+  list.innerHTML = state.citations.map((c,i) => `
+    <div class="cite-item">
+      <div class="cite-num">${i+1}</div>
+      <div class="cite-body">
+        <div class="cite-title">${escHtml(c.title||'')}</div>
+        <div class="cite-meta">${escHtml((c.authors||[]).slice(0,3).join(', '))} · ${c.year||''}${c.venue?' · '+c.venue:''}</div>
+        ${c.url?`<a class="cite-link" href="${escHtml(c.url)}" target="_blank">${escHtml(c.url.slice(0,60))}${c.url.length>60?'...':''}</a>`:''}
+      </div>
+    </div>`).join('');
+}
+
+// ── Download ─────────────────────────────────────────────────────────────────
+function download(type) {
+  window.open('/api/download/' + type, '_blank');
+}
+
+// ── Paper modal ──────────────────────────────────────────────────────────────
+function openPaperModal(i) {
+  const p = state.papers[i];
+  if (!p) return;
+  const s = state.summaries.find(x => x.title === p.title);
+  document.getElementById('modal-title').textContent = p.title;
+  const authors = (p.authors||[]).join(', ');
+  document.getElementById('modal-body').innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <span class="source-badge ${p.source==='arxiv'?'arxiv':'semantic_scholar'}">${p.source}</span>
+      <span class="hlite">${p.year||''}</span>
+      ${p.venue?`<span class="hlite">${escHtml(p.venue)}</span>`:''}
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${escHtml(authors)}</div>
+    <div style="margin-bottom:16px">
+      <div class="field-label">Abstract</div>
+      <div style="font-size:13px;line-height:1.65;margin-top:6px">${escHtml(p.abstract||'')}</div>
+    </div>
+    ${s?`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px">
+      <div class="field-label" style="margin-bottom:8px">Granite Summary</div>
+      <div style="font-size:13px;line-height:1.65;margin-bottom:10px">${escHtml(s.summary||'')}</div>
+      ${s.key_findings?`<div class="field-label">Key Findings</div><div style="font-size:12.5px;margin-top:4px;margin-bottom:8px">${escHtml(s.key_findings)}</div>`:''}
+      ${s.methods?`<div class="field-label">Methods</div><div style="font-size:12.5px;margin-top:4px">${escHtml(s.methods)}</div>`:''}
+    </div>`:''}
+    <div style="margin-top:14px">
+      <a href="${escHtml(p.url||'#')}" target="_blank" class="btn btn-secondary btn-sm">Open Paper</a>
+    </div>`;
+  document.getElementById('paper-modal').classList.add('open');
+}
+function closeModal() { document.getElementById('paper-modal').classList.remove('open'); }
+
+// ── Accordion ────────────────────────────────────────────────────────────────
+function toggleSummary(header) { header.parentElement.classList.toggle('open'); }
+
+// ── Utils ────────────────────────────────────────────────────────────────────
+function show(id) { const el=document.getElementById(id); if(el) el.style.display=''; }
+function hide(id) { const el=document.getElementById(id); if(el) el.style.display='none'; }
+function updateStats(p,s,sec,c) {
+  document.getElementById('stat-papers').textContent = p;
+  document.getElementById('stat-summ').textContent   = s;
+  document.getElementById('stat-secs').textContent   = sec;
+  document.getElementById('stat-cites').textContent  = c;
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('topic-input').focus();
+});
+</script>
+</body>
+</html>
