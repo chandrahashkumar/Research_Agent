@@ -13,3 +13,5 @@ reports/*.pdf
 .idea/
 
 .vscode/
+.gitattributes
+.pytest_cache
