@@ -1,0 +1,15 @@
+venv/
+
+__pycache__/
+
+*.pyc
+
+.env
+.env.example
+reports/*.pdf
+
+.streamlit/
+
+.idea/
+
+.vscode/
